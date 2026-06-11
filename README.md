@@ -98,12 +98,12 @@ No explicit surface valve/choke model yet
 
 ## Roadmap
 
-v0.1.0: clean Python package
-v0.2.0: THP valve / choke model
-v0.3.0: hydrate and ice diagnostics
-v0.4.0: deviated well geometry
-v0.5.0: OPM restart coupling example
-v0.6.0: validation against analytical and published benchmark cases
+* v0.1.0: clean Python package
+* v0.2.0: THP valve / choke model
+* v0.3.0: hydrate and ice diagnostics
+* v0.4.0: deviated well geometry
+* v0.5.0: OPM restart coupling example
+* v0.6.0: validation against analytical and published benchmark cases
 
 ## License
 
