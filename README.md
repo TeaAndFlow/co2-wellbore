@@ -34,6 +34,7 @@ The current model is a transparent research calculator. It uses simplified wellb
 py -m venv .venv
 .venv\Scripts\activate.bat
 pip install -e ".[dev]"
+```
 
 ## Basic example
 
