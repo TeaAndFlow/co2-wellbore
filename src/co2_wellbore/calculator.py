@@ -167,6 +167,9 @@ class CO2WellboreCalculator:
                     "pressure_bar": float(pressure * PA_TO_BAR),
                     "temperature_C": float(temperature_K - 273.15),
                     "geothermal_temperature_C": float(hcfg.geothermal_temperature_C(depth)),
+                    "thermal_model": str(getattr(hcfg, "model", "overall_U")),
+                    "thermal_U_W_m2K": float(hcfg.effective_overall_U_W_m2K(depth, heat_diameter)) if hcfg.enabled else 0.0,
+                    "thermal_elapsed_time_days": float(hcfg.elapsed_time_days) if getattr(hcfg, "elapsed_time_days", None) is not None else float("nan"),
                     "phase_label": str(flow_props["phase_label"]),
                     "quality_mass": float(flow_props["quality_mass"]),
                     "two_phase_active": float(flow_props["two_phase_active"]),
@@ -213,8 +216,9 @@ class CO2WellboreCalculator:
             if hcfg.enabled and mass_rate_kg_s > 0.0:
                 depth_mid = min(depth + 0.5 * dz, cfg.tvd_m)
                 ambient_temperature_K = hcfg.geothermal_temperature_C(depth_mid) + 273.15
+                U_eff = hcfg.effective_overall_U_W_m2K(depth_mid, heat_diameter)
                 dh_heat = (
-                    hcfg.overall_U_W_m2K
+                    U_eff
                     * math.pi
                     * heat_diameter
                     * dz

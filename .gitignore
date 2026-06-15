@@ -28,3 +28,31 @@ env/
 # Windows
 Thumbs.db
 Desktop.ini
+
+# Local OPM/coupling data and outputs
+data/
+figures/
+runs_restart_coupled_coolprop_manywells/
+
+# OPM Flow outputs
+*.UNRST
+*.EGRID
+*.INIT
+*.RSSPEC
+*.SMSPEC
+*.UNSMRY
+*.PRT
+*.DBG
+*.LOG
+FLOW_STDOUT.log
+
+# Coupling logs
+*.log
+RUN_PROGRESS.log
+coupled_exchange_*.csv
+wellbore_profiles_*.csv
+
+# Local backups
+*.before_HEM
+*_before_HEM.py
+*old.py
