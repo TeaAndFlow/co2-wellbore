@@ -56,3 +56,30 @@ wellbore_profiles_*.csv
 *.before_HEM
 *_before_HEM.py
 *old.py
+
+# Local OPM / VTK generated runs
+data/runs_restart_coupled_coolprop_manywells/
+runs_restart_coupled_coolprop_manywells/
+LOCAL_OPM*.log
+TEST_TEMPVD*.log
+
+# Large simulator outputs
+*.UNRST
+*.EGRID
+*.INIT
+*.SMSPEC
+*.UNSMRY
+*.ESMRY
+*.DBG
+*.PRT
+*.vtu
+*.pvtu
+*.pvd
+
+# Local debug archives
+thermal_restart_debug.tgz
+*.tgz
+
+# Python cache
+__pycache__/
+*.pyc
