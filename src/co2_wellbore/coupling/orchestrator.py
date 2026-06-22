@@ -42,6 +42,7 @@ from .reporting import _safe_float, print_solver_iteration_block
 from .summary_reader import _read_summary_or_prt
 from .wellbore_factory import build_advanced_wellbore
 from .thermal_coupling import ThermalUpdateState, propose_next_wtemp
+from .run_summary import write_run_summary
 
 def default_data_dir() -> Path:
     """Return repository-local data/ directory.
@@ -972,6 +973,13 @@ def run_orchestrator(args: argparse.Namespace) -> Path:
         figures_dir=figures_dir,
         case_id=str(args.case_id),
     )
+    run_summary_md = write_run_summary(
+        case_dir=case_dir,
+        case_id=str(args.case_id),
+        accepted_df=accepted_df,
+        iterations_df=iterations_df,
+        figure_paths=figure_paths,
+    )
 
     print(f"[OK] Figures directory: {figures_dir}")
     for fig_path in figure_paths:
@@ -990,6 +998,7 @@ def run_orchestrator(args: argparse.Namespace) -> Path:
         "iterations_csv": str(iterations_csv),
         "profiles_csv": str(profiles_csv),
         "figures_dir": str(figures_dir),
+        "run_summary_md": str(run_summary_md),
         "figures": [str(p) for p in figure_paths],
         "wellbore_settings": wb.config_dict(),
         "control_settings": {
@@ -1025,4 +1034,5 @@ def run_orchestrator(args: argparse.Namespace) -> Path:
     print(f"[OK] Accepted exchange CSV: {accepted_csv}")
     print(f"[OK] Iterations CSV: {iterations_csv}")
     print(f"[OK] Wellbore profiles CSV: {profiles_csv}")
+    print(f"[OK] Run summary: {run_summary_md}")
     return case_dir
