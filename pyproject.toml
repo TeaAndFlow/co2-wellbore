@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "co2-wellbore"
-version = "0.1.0"
+version = "0.2.6"
 description = "A transparent Python calculator for CO2 injection wellbore profiles, CCS/CCUS studies, CoolProp properties, and OPM Flow coupling."
 readme = "README.md"
 requires-python = ">=3.10"

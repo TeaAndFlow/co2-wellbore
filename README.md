@@ -8,7 +8,7 @@ Coupled CO₂ injection workflow linking:
 * thermal coupling through `WTEMP`,
 * restart-based stepwise reservoir control.
 
-This repository contains the `v0.2.5` coupled thermal choke workflow.
+This repository contains the `v0.2.6` coupled thermal choke workflow.
 
 ---
 
