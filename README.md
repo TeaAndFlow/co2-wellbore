@@ -1,55 +1,30 @@
 # CO₂ Wellbore–Reservoir Coupling
 
-Coupled CO₂ injection workflow linking:
+**Version `v0.2.8` — wellbore/choke validation and verification release**
 
-* an external CO₂ wellbore model,
-* a surface choke / valve model,
-* OPM Flow reservoir simulation,
-* thermal coupling through `WTEMP`,
-* restart-based stepwise reservoir control.
+This repository implements a Python-based reduced-order CO₂ wellbore and HEM choke model coupled to OPM Flow through a restart-based workflow.
 
-This repository contains the `v0.2.6` coupled thermal choke workflow.
+The project is intended for research on CO₂ injection control, wellbore–reservoir coupling, choke-limited injection, thermal feedback through `WTEMP`, and reproducible coupling diagnostics.
 
----
-
-## Key features in `v0.2.5`
-
-* HEM-based choke capacity model.
-* Opening-controlled choke schedule.
-* External wellbore pressure inversion.
-* Thermal coupling between OPM and the wellbore:
-
-  * `TEMPVD` remains the fixed geothermal reservoir profile.
-  * `WTEMP` is updated for each coupling iteration from the calculated bottomhole temperature.
-* Restart-based OPM Flow coupling with accepted-step continuation.
-* PyVista viewers for reservoir VTK fields and wellbore profiles.
-* Clean plotting scripts for convergence, pressure, temperature, rate and choke diagnostics.
-* Canonical 30-step runner with opening schedule:
-  `1, 2, 3, 4, 5, 6, 7, 8, then 8% until step 30`.
+> **Scope note:** `v0.2.8` validates and verifies the **external reduced-order CO₂ wellbore and HEM choke components**.  
+> The OPM Flow reservoir simulator is treated as an external simulator and is **not revalidated** in this repository.
 
 ---
 
-## Example results
+## What is new in `v0.2.8`
 
-### CO₂ plume / gas saturation
+Version `v0.2.8` adds a visible validation and verification layer for the wellbore/choke model:
 
-![CO2 plume](figures/field_plume.png)
+- CO₂ property checks against frozen NIST WebBook reference points;
+- CO₂ density and enthalpy trend verification;
+- tiny-flow hydrostatic wellbore pressure limiting case;
+- reduced thermal-model heat-transfer limiting behavior;
+- HEM choke capacity response to opening;
+- HEM choked and subcritical flow behavior;
+- HEM ideal-gas limiting behavior;
+- HEM critical-pressure and capacity numerical robustness.
 
-### Reservoir pressure field
-
-![Reservoir pressure](figures/field_pressure.png)
-
-### Choke residual convergence
-
-![Choke residual](figures/clean_choke_flow_residual.png)
-
-### Wellbore pressure profiles
-
-![Wellbore pressure](figures/clean_wellbore_pressure.png)
-
-### Wellbore temperature profiles
-
-![Wellbore temperature](figures/clean_wellbore_temperature.png)
+This release is designed to make the model easier to assess scientifically, not just operationally.
 
 ---
 
@@ -57,281 +32,321 @@ This repository contains the `v0.2.6` coupled thermal choke workflow.
 
 ```text
 co2-wellbore/
-├── data/
-│   ├── Base.DATA
-│   └── INCLUDE/
-├── examples/
-│   ├── 07_opm_opening_choke_coupling.py
-│   └── run_30step_opening_choke_vtk.sh
-├── scripts/
-│   ├── replot_coupling_clean.py
-│   ├── view_coupled_pipe_pyvista.py
-│   └── view_coupled_reservoir_pyvista.py
 ├── src/co2_wellbore/
-│   ├── choke.py
-│   ├── hem_choke.py
-│   ├── properties.py
-│   └── coupling/
-│       ├── deck_editing.py
-│       ├── opening_choke.py
-│       ├── opm_restart.py
-│       ├── plotting.py
-│       └── reporting.py
-└── figures/
+│   ├── calculator.py              # 1D CO₂ wellbore pressure/thermal model
+│   ├── hem_choke.py               # Real-fluid HEM choke model
+│   ├── properties.py              # CoolProp CO₂ property wrapper
+│   └── coupling/                  # OPM Flow restart-based coupling workflow
+├── data/                          # Example OPM deck and include files
+├── examples/                      # Example coupling runners
+├── tests/                         # Unit and validation tests
+├── scripts/validation/            # Reproducible validation figure generators
+├── validation/
+│   ├── reference/                 # Frozen external reference data
+│   ├── figures/                   # Generated validation figures
+│   └── results/                   # Generated validation CSV tables
+├── VALIDATION.md                  # Validation scope and methodology
+└── README.md
 ```
 
 ---
 
 ## Installation
 
-Create and activate a Python environment:
+From the repository root:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+pip install -e ".[dev]"
 ```
 
-Install the package in editable mode:
+The package depends on `numpy`, `pandas`, `CoolProp`, `matplotlib`, `scipy`, and `pytest` for tests.
+
+---
+
+## Quick checks
+
+Run the full test suite:
 
 ```bash
-pip install -e .
+pytest -q
 ```
 
-For PyVista visualization:
+Run only the validation tests:
 
 ```bash
-pip install pyvista vtk matplotlib pandas numpy
+pytest -q tests/validation
 ```
 
-OPM Flow must be available as `flow` in your terminal:
+Run the validation scripts:
 
 ```bash
-flow --version
+./scripts/validation/run_validation_suite.sh
+```
+
+Or run the figure generators individually:
+
+```bash
+python scripts/validation/generate_validation_figures.py
+python scripts/validation/generate_hem_ideal_gas_limit.py
+python scripts/validation/generate_property_reference_comparison.py
+```
+
+Generated figures are written to:
+
+```text
+validation/figures/
+```
+
+Generated numerical tables are written to:
+
+```text
+validation/results/
 ```
 
 ---
 
-## Run the canonical 30-step coupled case
+# Validation and verification evidence in `v0.2.8`
+
+The following figures are intentionally shown on the main project page so that the validation evidence is visible immediately on GitHub.
+
+## 1. CO₂ property verification
+
+### CO₂ density trend
+
+![CO₂ density verification](validation/figures/co2_density_vs_pressure.png)
+
+The density increases with pressure at fixed temperature. The steep increase at lower temperature reflects the transition toward dense/supercritical-like CO₂ behavior.
+
+### CO₂ enthalpy trend
+
+![CO₂ enthalpy verification](validation/figures/co2_enthalpy_vs_pressure.png)
+
+The specific enthalpy decreases smoothly with pressure at fixed temperature. This verifies stable property evaluation over the tested pressure range.
+
+### Frozen NIST reference comparison
+
+![CO₂ NIST property verification](validation/figures/co2_reference_property_max_errors.png)
+
+Frozen NIST WebBook reference points are used for density, enthalpy, viscosity, and heat capacity.
+
+For the selected reference states, the maximum relative errors are below `0.003%`.
+
+The reference CSV is stored in:
+
+```text
+validation/reference/co2_nist_reference_points.csv
+```
+
+The comparison results are stored in:
+
+```text
+validation/results/co2_reference_property_comparison.csv
+validation/results/co2_reference_property_error_summary.csv
+```
+
+Additional parity plots are generated for each property:
+
+```text
+validation/figures/co2_reference_density_kg_m3_parity.png
+validation/figures/co2_reference_enthalpy_J_kg_parity.png
+validation/figures/co2_reference_viscosity_Pa_s_parity.png
+validation/figures/co2_reference_cp_J_kgK_parity.png
+```
+
+---
+
+## 2. Wellbore pressure verification
+
+### Tiny-flow hydrostatic limit
+
+![Wellbore hydrostatic verification](validation/figures/wellbore_pressure_hydrostatic_limit.png)
+
+At tiny flow rate, friction and acceleration effects are small. The computed wellbore pressure profile closely follows the hydrostatic pressure estimate.
+
+This verifies that the pressure integration behaves correctly in a simple analytical limiting case.
+
+---
+
+## 3. Reduced thermal-model verification
+
+### Heat-transfer response
+
+![Wellbore thermal verification](validation/figures/wellbore_thermal_response.png)
+
+As the heat-transfer coefficient increases, the bottomhole temperature moves toward the geothermal bottomhole temperature.
+
+This verifies the limiting behavior of the reduced thermal model.
+
+> This figure does **not** claim full transient thermal-physics validation.  
+> It verifies that the reduced engineering thermal model responds in the physically expected direction.
+
+---
+
+## 4. HEM choke verification
+
+### Capacity response to choke opening
+
+![HEM capacity opening verification](validation/figures/hem_capacity_vs_opening.png)
+
+The HEM choke capacity increases monotonically with choke opening.
+
+This verifies the expected physical response of the effective choke area.
+
+### Choked and subcritical regimes
+
+![HEM choked/subcritical verification](validation/figures/hem_capacity_vs_downstream_pressure.png)
+
+The model reproduces two expected regimes:
+
+- below the critical pressure, the flow is choked and capacity is nearly independent of downstream pressure;
+- above the critical pressure, the flow becomes subcritical and capacity decreases with increasing downstream pressure.
+
+### Ideal-gas limiting behavior
+
+![HEM ideal-gas limit verification](validation/figures/hem_ideal_gas_limit.png)
+
+In gas-like CO₂ states, the real-fluid HEM implementation approaches the analytical ideal-gas choked-flow limit.
+
+![HEM ideal-gas error](validation/figures/hem_ideal_gas_limit_error.png)
+
+The relative difference from the analytical ideal-gas limit is about `0.3–0.4%` for the selected gas-like CO₂ cases.
+
+---
+
+## 5. HEM critical-pressure numerical robustness
+
+### Critical-pressure robustness
+
+![HEM critical pressure robustness](validation/figures/hem_critical_pressure_convergence.png)
+
+### Capacity robustness
+
+![HEM capacity robustness](validation/figures/hem_capacity_convergence.png)
+
+The HEM critical pressure is no longer selected only as the maximum point from a fixed pressure grid.
+
+In `v0.2.8`, the algorithm uses:
+
+1. a log-spaced pressure grid to locate a robust bracket;
+2. bounded scalar optimization in log-pressure space to refine the critical point;
+3. the original grid result as fallback if the optimizer fails or enters an invalid thermodynamic state.
+
+The resulting critical pressure and capacity are insensitive to the optimizer-bracketing grid resolution for the tested case.
+
+---
+
+# Main validation summary
+
+| Component | Verification evidence | Result |
+|---|---|---|
+| CO₂ properties | Frozen NIST WebBook reference points | Maximum selected-property error below `0.003%` |
+| CO₂ property trends | Density and enthalpy over pressure | Smooth physically consistent trends |
+| Wellbore pressure | Tiny-flow hydrostatic limit | Computed pressure closely follows hydrostatic estimate |
+| Reduced thermal model | Heat-transfer response | Bottomhole temperature approaches geothermal limit as `U` increases |
+| HEM opening response | Capacity versus choke opening | Capacity increases monotonically with opening |
+| HEM critical flow | Capacity versus downstream pressure | Choked plateau and subcritical decline reproduced |
+| HEM analytical limit | Ideal-gas choked-flow comparison | Agreement within about `0.4%` in gas-like CO₂ cases |
+| HEM numerics | Optimizer-bracketing grid sensitivity | Capacity and critical pressure insensitive to bracketing resolution |
+
+---
+
+## Scientific claim
+
+The correct scientific claim for `v0.2.8` is:
+
+> The reduced-order CO₂ wellbore and HEM choke components are verified against thermodynamic reference points, analytical limiting cases, monotonicity checks, choked-flow behavior, ideal-gas limiting behavior, and numerical robustness tests.
+
+This repository does **not** claim:
+
+- validation of OPM Flow itself;
+- equivalence to OLGA or PROSPER;
+- field-calibrated predictive wellbore performance;
+- full transient multiphase wellbore PDE validation.
+
+---
+
+## Coupling model overview
+
+The coupling workflow links OPM Flow and the external wellbore/choke model through restart-based control.
+
+At each coupling step, the workflow uses OPM trial information and external wellbore/choke calculations to update injection control quantities such as:
+
+- injection rate;
+- wellbore bottomhole pressure;
+- tubing-head/choke behavior;
+- bottomhole temperature feedback through `WTEMP`.
+
+The thermal deck editing workflow keeps `TEMPVD` as the fixed geothermal reservoir initialization and updates `WTEMP` as the wellbore-calculated injection temperature.
+
+This avoids resetting the reservoir thermal field while still allowing the external wellbore model to provide thermal feedback at the well.
+
+---
+
+## Canonical validation commands
 
 From the repository root:
 
 ```bash
-./examples/run_30step_opening_choke_vtk.sh
+pip install -e ".[dev]"
+python -m compileall src
+pytest -q
+pytest -q tests/validation
+./scripts/validation/run_validation_suite.sh
 ```
 
-Or provide a custom case ID:
-
-```bash
-./examples/run_30step_opening_choke_vtk.sh MY_30STEP_CASE
-```
-
-The canonical schedule is:
+Expected state for `v0.2.8`:
 
 ```text
-1 2 3 4 5 6 7 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
-```
-
-The generated outputs are written to:
-
-```text
-data/runs_restart_coupled_coolprop_manywells/<CASE_ID>/
-```
-
-These simulation outputs are intentionally ignored by Git.
-
----
-
-## Coupling model
-
-At each coupling step, the workflow solves:
-
-1. OPM Flow reservoir response for a trial injection rate.
-2. External wellbore pressure inversion:
-
-   ```text
-   BHP_wellbore(THP, q, h_choke) = WBHP_OPM
-   ```
-3. HEM choke flow consistency:
-
-   ```text
-   m_actual = m_capacity_HEM(opening, P1, T1, THP)
-   ```
-4. Thermal consistency:
-
-   ```text
-   WTEMP_OPM = BHT_wellbore
-   ```
-
-Accepted steps are stored in:
-
-```text
-coupled_exchange_accepted.csv
-```
-
-All trial iterations are stored in:
-
-```text
-coupled_exchange_iterations.csv
+all tests passing
+validation figures generated in validation/figures/
+validation CSV tables generated in validation/results/
 ```
 
 ---
 
-## Thermal restart note
+## Recommended use in papers or thesis text
 
-A key issue fixed in `v0.2.5` is the thermal restart behavior.
+Recommended wording:
 
-The reservoir geothermal profile is initialized by:
+> A restart-based research coupling workflow is developed between OPM Flow and an external reduced-order CO₂ wellbore/choke model. The external model uses CoolProp real-fluid properties, a 1D wellbore pressure/thermal calculation, and a real-fluid HEM choke capacity model. The wellbore and choke components are verified against frozen thermodynamic reference points, analytical limiting cases, monotonicity checks, choked-flow behavior, ideal-gas limiting behavior, and numerical robustness tests. The reservoir simulator itself is treated as an external component and is not revalidated in this work.
 
-```text
-TEMPVD
-...
-/
-```
-
-This must remain fixed and must not be replaced by the injected CO₂ temperature.
-
-The coupling updates the well injection/source temperature through:
+Avoid claiming:
 
 ```text
-WTEMP
- INJ1 <BHT_from_external_wellbore> /
-/
+The full coupled simulator is fully validated against commercial wellbore simulators.
 ```
 
-Restart segments preserve the fixed `TEMPVD` profile while applying the current coupling `WTEMP`.
-
-This prevents the whole reservoir temperature field from being incorrectly reset to the reference temperature.
-
----
-
-## View reservoir cubes
-
-Set the case directory:
-
-```bash
-CASE_ID="LOCAL_OPM_HEM_LAYERED_D067_OPEN_01_08_HOLD30_VTK_TEMPVD"
-CASE_DIR="$PWD/data/runs_restart_coupled_coolprop_manywells/$CASE_ID"
-```
-
-View CO₂ plume / gas saturation:
-
-```bash
-python scripts/view_coupled_reservoir_pyvista.py \
-  --case-dir "$CASE_DIR" \
-  --variable plume \
-  --opacity 1.0 \
-  --show-edges \
-  --view top \
-  --well-i 24 \
-  --well-j 45 \
-  --well-index-base 1 \
-  --well-marker-frac 0.002
-```
-
-View reservoir temperature:
-
-```bash
-python scripts/view_coupled_reservoir_pyvista.py \
-  --case-dir "$CASE_DIR" \
-  --variable temp \
-  --opacity 1.0 \
-  --show-edges \
-  --view top \
-  --well-i 24 \
-  --well-j 45
-```
-
-View reservoir pressure:
-
-```bash
-python scripts/view_coupled_reservoir_pyvista.py \
-  --case-dir "$CASE_DIR" \
-  --variable pressure \
-  --opacity 1.0 \
-  --show-edges \
-  --view top \
-  --well-i 24 \
-  --well-j 45
-```
-
----
-
-## View wellbore profiles
-
-```bash
-python scripts/view_coupled_pipe_pyvista.py \
-  --case-dir "$CASE_DIR"
-```
-
----
-
-## Replot clean figures
-
-```bash
-python scripts/replot_coupling_clean.py \
-  --case-dir "$CASE_DIR" \
-  --out-dir figures
-```
-
-This produces clean plots without huge legends, using colorbars where appropriate.
-
----
-
-## Git hygiene
-
-Large simulator outputs are ignored:
+A stronger and more defensible claim is:
 
 ```text
-*.UNRST
-*.EGRID
-*.INIT
-*.vtu
-*.pvtu
-*.pvd
-data/runs_restart_coupled_coolprop_manywells/
-runs_restart_coupled_coolprop_manywells/
-```
-
-The repository should contain input decks, scripts, source code and selected result figures, but not full generated simulation runs.
-
----
-
-## Version
-
-Current workflow branch:
-
-```text
-v0.2.5-coupled-thermal
-```
-
-Suggested tag:
-
-```text
-v0.2.5
+The reduced-order wellbore/choke components are verified and documented through reproducible validation tests and figures.
 ```
 
 ---
 
-## Validation in `v0.2.8`
+## Development notes
 
-Version `v0.2.8` adds a validation and verification layer for the external CO₂ wellbore and HEM choke model.
-
-The validation layer covers:
-
-* CO₂ property sanity checks,
-* 1D wellbore pressure limiting cases,
-* reduced thermal-model limiting cases,
-* HEM choke physical monotonicity checks,
-* HEM critical-pressure grid-vs-optimizer convergence.
-
-Reservoir simulator validation is outside the scope of this repository. OPM Flow is treated as an external simulator.
-
-Run:
+Useful commands:
 
 ```bash
+python -m compileall src
+pytest -q
 pytest -q tests/validation
 python scripts/validation/run_hem_grid_convergence.py
 ```
 
-See VALIDATION.md for the scientific scope and limitations.
+Generate validation figures:
 
+```bash
+python scripts/validation/generate_validation_figures.py
+python scripts/validation/generate_hem_ideal_gas_limit.py
+python scripts/validation/generate_property_reference_comparison.py
+```
+
+---
+
+## License and data
+
+The repository uses open Python tooling and frozen local validation reference points.
+
+The NIST WebBook-derived reference values are stored as fixed CSV values to keep the validation suite reproducible offline. The validation scripts do not download live web data during CI or local test runs.
