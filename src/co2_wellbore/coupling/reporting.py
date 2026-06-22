@@ -77,144 +77,60 @@ def _opening_choke_flow_reason(flow_resid_kg_s: float) -> str:
     return "HEM choke mass-flow capacity is exactly matched."
 
 
-def print_solver_iteration_block(
-    *,
-    step: int,
-    iteration: int,
-    max_iter: int,
-    mode: str,
-    root: str,
-    flow_ok: bool,
-    flow_seconds: float,
-    reservoir_source: str,
-    q_target: float,
-    q_actual: float,
-    q_lo: float,
-    q_hi: float,
-    opening_percent: float,
-    kv_eff: float,
-    kv_required: float,
-    valve_resid: float,
-    kv_tol: float,
-    bhp_opm: float,
-    thp_calc: float,
-    bhp_calc: float,
-    inversion_resid: float,
-    p_tol: float,
-    wtemp_used: float,
-    bht_calc: float,
-    temp_resid: float,
-    t_tol: float,
-    rate_resid: float,
-    q_tol: float,
-    t2: float,
-    quality: float,
-    phase: str,
-    pressure_converged: bool,
-    temperature_converged: bool,
-    rate_converged: bool,
-    choke_model: str = "legacy_kv",
-    choke_capacity_kg_s: float = float("nan"),
-    choke_actual_mass_rate_kg_s: float = float("nan"),
-    choke_capacity_residual_kg_s: float = float("nan"),
-    hem_flow_tolerance_kg_s: float = float("nan"),
-    flow_regime: str = "",
-) -> None:
-    converged = bool(pressure_converged and temperature_converged and rate_converged)
-    is_hem = bool(mode == "opening_choke" and str(choke_model).lower() == "hem")
+def print_solver_iteration_block(**kw) -> None:
+    """Print one compact, user-friendly coupling iteration line.
 
-    if mode == "opening_choke" and is_hem:
-        pressure_name = "CHOKE FLOW"
-        pressure_equation = "R_m = m_actual - m_capacity_HEM(opening, P1, T1, THP)"
-        pressure_value = choke_capacity_residual_kg_s
-        pressure_tol = hem_flow_tolerance_kg_s
-        pressure_unit = "kg/s"
-        pressure_reason = _opening_choke_flow_reason(float(choke_capacity_residual_kg_s))
-    elif mode == "opening_choke":
-        pressure_name = "CHOKE CAPACITY"
-        pressure_equation = "R_Kv = Kv_required(q, THP_required) - Kv_effective(opening)"
-        pressure_value = valve_resid
-        pressure_tol = kv_tol
-        pressure_unit = "m3/h"
-        pressure_reason = _opening_choke_reason(float(valve_resid))
-    elif mode == "thp_limit":
-        pressure_name = "THP LIMIT"
-        pressure_equation = "R_THP = THP_required - THP_target"
-        pressure_value = thp_calc
-        pressure_tol = p_tol
-        pressure_unit = "bar"
-        pressure_reason = "THP-limit control mode."
+    Full diagnostics are still written by orchestrator.py to CSV/JSON.
+    Terminal output must stay readable during long OPM runs.
+    """
+    import math
+
+    def get(name: str, default=None):
+        return kw.get(name, default)
+
+    def f(name: str, fmt: str = ".3f", default: str = "nan") -> str:
+        try:
+            x = float(get(name))
+            if not math.isfinite(x):
+                return default
+            return format(x, fmt)
+        except Exception:
+            return default
+
+    def flag(name: str) -> str:
+        return "OK" if bool(get(name, False)) else "NO"
+
+    step = int(get("step", -1))
+    max_steps = int(get("max_steps", -1))
+    iteration = int(get("iteration", -1))
+    max_iter = int(get("max_iter", -1))
+
+    pressure_ok = flag("pressure_converged")
+    temperature_ok = flag("temperature_converged")
+    rate_ok = flag("rate_converged")
+
+    accepted = pressure_ok == "OK" and temperature_ok == "OK" and rate_ok == "OK"
+    decision = "accept" if accepted else "continue"
+
+    choke_model = str(get("choke_model", "")).lower()
+    if choke_model == "hem":
+        choke_text = f"choke={f('choke_capacity_residual_kg_s', '+.3f')} kg/s"
     else:
-        pressure_name = "BHP INVERSION"
-        pressure_equation = "R_BHP = BHP_calc - WBHP_OPM"
-        pressure_value = inversion_resid
-        pressure_tol = p_tol
-        pressure_unit = "bar"
-        pressure_reason = "Fixed-rate pressure reconstruction mode."
+        choke_text = f"dKv={f('valve_resid', '+.4f')}"
 
-    decision = "ACCEPT STEP" if converged else "CONTINUE ITERATION"
-
-    print()
-    print("=" * 96)
-    print(f"COUPLING NONLINEAR ITERATION REPORT")
-    print("-" * 96)
-    print(f"Step / Iteration     : {step} / {iteration} of {max_iter}")
-    print(f"Segment root         : {root}")
-    print(f"Mode                 : {mode}")
-    print(f"Choke model          : {choke_model}")
-    print(f"Decision             : {decision}")
-    print("-" * 96)
-    print("1) OPM RESERVOIR EVALUATION")
-    print(f"   Flow status        : {'OK' if flow_ok else 'FAILED'}  ({_fmt(flow_seconds, 2, 's')})")
-    print(f"   Result source      : {reservoir_source}")
-    print(f"   Trial rate target  : {_fmt(q_target, 3, 'sm3/day')}")
-    print(f"   OPM actual rate    : {_fmt(q_actual, 3, 'sm3/day')}")
-    print(f"   Rate residual      : {_fmt(rate_resid, 3, 'sm3/day')}  "
-          f"|tol|={_fmt(q_tol, 3)}  [{_status(rate_converged)}; {_ratio(rate_resid, q_tol)}]")
-    print(f"   WBHP from OPM      : {_fmt(bhp_opm, 3, 'bar')}")
-    print("-" * 96)
-    print("2) EXTERNAL WELLBORE INVERSION")
-    print("   Search variable    : THP_required")
-    print("   Equation           : BHP_wellbore(THP, q_OPM, h_choke) = WBHP_OPM")
-    print(f"   THP required       : {_fmt(thp_calc, 3, 'bar')}")
-    print(f"   BHP calculated     : {_fmt(bhp_calc, 3, 'bar')}")
-    print(f"   BHP inversion res. : {_fmt(inversion_resid, 4, 'bar')}  "
-          f"|tol|={_fmt(p_tol, 4)}  [{_ratio(inversion_resid, p_tol)}]")
-    print("-" * 96)
-    print("3) SURFACE CHOKE / VALVE CONSTRAINT")
-    print(f"   Opening            : {_fmt(opening_percent, 2, '%')}")
-
-    if is_hem:
-        print(f"   Flow regime        : {flow_regime}")
-        print(f"   Actual mass rate   : {_fmt(choke_actual_mass_rate_kg_s, 5, 'kg/s')}")
-        print(f"   HEM capacity       : {_fmt(choke_capacity_kg_s, 5, 'kg/s')}")
-        print(f"   Residual equation  : {pressure_equation}")
-        print(f"   {pressure_name:18s}: {_fmt(pressure_value, 5, pressure_unit)}  "
-              f"|tol|={_fmt(pressure_tol, 5)}  [{_status(pressure_converged)}; {_ratio(pressure_value, pressure_tol)}]")
+    if max_steps > 0:
+        step_text = f"{step:02d}/{max_steps:02d}"
     else:
-        print(f"   Kv effective       : {_fmt(kv_eff, 4, 'm3/h')}")
-        print(f"   Kv required        : {_fmt(kv_required, 4, 'm3/h')}")
-        print(f"   Residual equation  : {pressure_equation}")
-        print(f"   {pressure_name:18s}: {_fmt(pressure_value, 4, pressure_unit)}  "
-              f"|tol|={_fmt(pressure_tol, 4)}  [{_status(pressure_converged)}; {_ratio(pressure_value, pressure_tol)}]")
+        step_text = f"{step:02d}"
 
-    print(f"   Reason             : {pressure_reason}")
-    print(f"   Post-choke T       : {_fmt(t2, 3, 'C')}")
-    print(f"   Post-choke quality : {_fmt(quality, 5)}")
-    print(f"   Post-choke phase   : {phase}")
-    print("-" * 96)
-    print("4) THERMAL COUPLING")
-    print("   Equation           : WTEMP_OPM -> BHT_wellbore consistency")
-    print(f"   WTEMP used in OPM  : {_fmt(wtemp_used, 3, 'C')}")
-    print(f"   BHT calculated     : {_fmt(bht_calc, 3, 'C')}")
-    print(f"   Temperature resid. : {_fmt(temp_resid, 3, 'C')}  "
-          f"|tol|={_fmt(t_tol, 3)}  [{_status(temperature_converged)}; {_ratio(temp_resid, t_tol)}]")
-    print("-" * 96)
-    print("5) RATE SEARCH STATE")
-    print(f"   Current bracket    : [{_fmt(q_lo, 3)}, {_fmt(q_hi, 3)}] sm3/day")
-    print(f"   Search method      : bracketed secant / false-position when both residuals exist, otherwise bisection")
-    print(f"   Pressure OK        : {_status(pressure_converged)}")
-    print(f"   Temperature OK     : {_status(temperature_converged)}")
-    print(f"   Rate OK            : {_status(rate_converged)}")
-    print("=" * 96)
-    print()
+    print(
+        f"[{step_text} it {iteration:02d}/{max_iter:02d}] "
+        f"open={f('opening_percent', '.1f')}% "
+        f"q={f('q_actual', '.0f')} sm3/d | "
+        f"WBHP={f('bhp_opm', '.1f')} "
+        f"THP={f('thp_calc', '.2f')} | "
+        f"dT={f('temp_resid', '+.2f')}C | "
+        f"{choke_text} | "
+        f"P:{pressure_ok} T:{temperature_ok} -> {decision}",
+        flush=True,
+    )
