@@ -12,7 +12,7 @@ This repository contains the `v0.2.6` coupled thermal choke workflow.
 
 ---
 
-## Key features in `v0.2.5`
+## Key features in `v0.2.6`
 
 * HEM-based choke capacity model.
 * Opening-controlled choke schedule.
