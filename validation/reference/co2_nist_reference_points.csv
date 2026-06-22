@@ -1,0 +1,5 @@
+case_id,pressure_bar,temperature_C,density_kg_m3,enthalpy_J_kg,viscosity_Pa_s,cp_J_kgK,source
+P60_T40,60,40,149.26,451720,1.7776e-05,1833.5,NIST_WebBook
+P60_T60,60,60,124.91,483440,1.8296e-05,1420.4,NIST_WebBook
+P100_T40,100,40,628.61,313040,4.7652e-05,5657.5,NIST_WebBook
+P120_T80,120,80,296.74,447640,2.4851e-05,2335.7,NIST_WebBook
