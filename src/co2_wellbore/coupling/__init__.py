@@ -1,6 +1,7 @@
-"""Coupling workflows for CO2 wellbore / OPM Flow studies."""
+"""Coupling utilities for OPM Flow restart-based CO2 wellbore coupling."""
 
-from .opm_restart import build_parser, run_orchestrator, main
+from .cli import build_parser, main
+from .orchestrator import run_orchestrator
 
 __all__ = [
     "build_parser",
