@@ -309,3 +309,29 @@ Suggested tag:
 ```text
 v0.2.5
 ```
+
+---
+
+## Validation in `v0.2.8`
+
+Version `v0.2.8` adds a validation and verification layer for the external CO₂ wellbore and HEM choke model.
+
+The validation layer covers:
+
+* CO₂ property sanity checks,
+* 1D wellbore pressure limiting cases,
+* reduced thermal-model limiting cases,
+* HEM choke physical monotonicity checks,
+* HEM critical-pressure grid-vs-optimizer convergence.
+
+Reservoir simulator validation is outside the scope of this repository. OPM Flow is treated as an external simulator.
+
+Run:
+
+```bash
+pytest -q tests/validation
+python scripts/validation/run_hem_grid_convergence.py
+```
+
+See VALIDATION.md for the scientific scope and limitations.
+

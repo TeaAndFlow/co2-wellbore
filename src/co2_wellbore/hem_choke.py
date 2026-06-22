@@ -25,6 +25,11 @@ try:
 except Exception:  # pragma: no cover
     PropsSI = None  # type: ignore
 
+try:
+    from scipy.optimize import minimize_scalar
+except Exception:  # pragma: no cover
+    minimize_scalar = None  # type: ignore
+
 from .constants import BAR_TO_PA, PA_TO_BAR
 from .properties import CoolPropCO2
 
@@ -212,6 +217,148 @@ class CO2HEMChokeValve:
             for i in range(int(n))
         ]
 
+    def _mass_flux_value(
+        self,
+        *,
+        upstream_pressure_bar: float,
+        upstream_temperature_C: float,
+        static_pressure_bar: float,
+    ) -> float:
+        """Return scalar HEM mass flux for optimization; invalid states map to -inf."""
+        r = self._mass_flux_at_static_pressure(
+            upstream_pressure_bar=upstream_pressure_bar,
+            upstream_temperature_C=upstream_temperature_C,
+            static_pressure_bar=static_pressure_bar,
+        )
+        if r is None:
+            return float("-inf")
+
+        g = float(r["mass_flux_kg_m2_s"])
+        if not math.isfinite(g) or g <= 0.0:
+            return float("-inf")
+        return g
+
+    def _critical_throat_state(
+        self,
+        *,
+        upstream_pressure_bar: float,
+        upstream_temperature_C: float,
+    ) -> Dict[str, float | str]:
+        """Find HEM critical throat state.
+
+        The old implementation selected the maximum from a finite pressure grid.
+        That is robust but grid-dependent.  This implementation keeps the grid
+        only as a bracketing/fallback device, then refines the critical pressure
+        using bounded scalar optimization in log-pressure space.
+
+        If scipy is unavailable or the optimizer fails, the best grid candidate
+        is returned.  This keeps the model reproducible and robust.
+        """
+        p1_bar = float(upstream_pressure_bar)
+        p_hi = p1_bar * (1.0 - self.config.pressure_eps_fraction)
+        p_lo = max(float(self.config.min_pressure_bar), 1.0e-6)
+
+        grid = self._pressure_grid_bar(p_lo, p_hi, self.config.n_pressure_samples)
+
+        candidates: List[tuple[int, float, Dict[str, float | str]]] = []
+        for i, p_bar in enumerate(grid):
+            r = self._mass_flux_at_static_pressure(
+                upstream_pressure_bar=p1_bar,
+                upstream_temperature_C=upstream_temperature_C,
+                static_pressure_bar=p_bar,
+            )
+            if r is not None:
+                candidates.append((i, p_bar, r))
+
+        if not candidates:
+            raise ValueError("HEM failed: no valid throat pressure candidates.")
+
+        best_i, best_p, best_state = max(
+            candidates,
+            key=lambda item: float(item[2]["mass_flux_kg_m2_s"]),
+        )
+        best_g = float(best_state["mass_flux_kg_m2_s"])
+
+        # If scipy is unavailable, or the maximum is at/near a grid boundary,
+        # return the grid result and explicitly report it.
+        if minimize_scalar is None or best_i <= 0 or best_i >= len(grid) - 1:
+            best_state["critical_search_method"] = "grid_fallback"
+            best_state["critical_optimizer_success"] = "false"
+            best_state["critical_grid_pressure_bar"] = float(best_p)
+            best_state["critical_grid_mass_flux_kg_m2_s"] = float(best_g)
+            return best_state
+
+        # Use a small local bracket around the best grid point.
+        i0 = max(best_i - 2, 0)
+        i1 = min(best_i + 2, len(grid) - 1)
+        a = float(grid[i0])
+        b = float(grid[i1])
+
+        if not (a < best_p < b):
+            best_state["critical_search_method"] = "grid_fallback"
+            best_state["critical_optimizer_success"] = "false"
+            best_state["critical_grid_pressure_bar"] = float(best_p)
+            best_state["critical_grid_mass_flux_kg_m2_s"] = float(best_g)
+            return best_state
+
+        def objective(log_p: float) -> float:
+            p_bar = math.exp(float(log_p))
+            g = self._mass_flux_value(
+                upstream_pressure_bar=p1_bar,
+                upstream_temperature_C=upstream_temperature_C,
+                static_pressure_bar=p_bar,
+            )
+            if not math.isfinite(g):
+                return 1.0e99
+            return -g
+
+        try:
+            opt = minimize_scalar(
+                objective,
+                bounds=(math.log(a), math.log(b)),
+                method="bounded",
+                options={"xatol": 1.0e-8, "maxiter": 100},
+            )
+        except Exception:
+            opt = None
+
+        if opt is None or not bool(getattr(opt, "success", False)):
+            best_state["critical_search_method"] = "grid_fallback_after_optimizer_failure"
+            best_state["critical_optimizer_success"] = "false"
+            best_state["critical_grid_pressure_bar"] = float(best_p)
+            best_state["critical_grid_mass_flux_kg_m2_s"] = float(best_g)
+            return best_state
+
+        p_opt = math.exp(float(opt.x))
+        opt_state = self._mass_flux_at_static_pressure(
+            upstream_pressure_bar=p1_bar,
+            upstream_temperature_C=upstream_temperature_C,
+            static_pressure_bar=p_opt,
+        )
+
+        if opt_state is None:
+            best_state["critical_search_method"] = "grid_fallback_after_invalid_optimizer_state"
+            best_state["critical_optimizer_success"] = "false"
+            best_state["critical_grid_pressure_bar"] = float(best_p)
+            best_state["critical_grid_mass_flux_kg_m2_s"] = float(best_g)
+            return best_state
+
+        opt_g = float(opt_state["mass_flux_kg_m2_s"])
+
+        # Guard against optimizer pathologies near CoolProp invalid regions.
+        if not math.isfinite(opt_g) or opt_g < 0.999 * best_g:
+            best_state["critical_search_method"] = "grid_fallback_after_optimizer_guard"
+            best_state["critical_optimizer_success"] = "false"
+            best_state["critical_grid_pressure_bar"] = float(best_p)
+            best_state["critical_grid_mass_flux_kg_m2_s"] = float(best_g)
+            return best_state
+
+        opt_state["critical_search_method"] = "grid_then_bounded_optimizer"
+        opt_state["critical_optimizer_success"] = "true"
+        opt_state["critical_grid_pressure_bar"] = float(best_p)
+        opt_state["critical_grid_mass_flux_kg_m2_s"] = float(best_g)
+        return opt_state
+
     def capacity_result(
         self,
         *,
@@ -236,20 +383,10 @@ class CO2HEMChokeValve:
         p_hi = p1_bar * (1.0 - self.config.pressure_eps_fraction)
         p_lo = max(float(self.config.min_pressure_bar), 1.0e-6)
 
-        candidates: List[Dict[str, float | str]] = []
-        for p_bar in self._pressure_grid_bar(p_lo, p_hi, self.config.n_pressure_samples):
-            r = self._mass_flux_at_static_pressure(
-                upstream_pressure_bar=p1_bar,
-                upstream_temperature_C=upstream_temperature_C,
-                static_pressure_bar=p_bar,
-            )
-            if r is not None:
-                candidates.append(r)
-
-        if not candidates:
-            raise ValueError("HEM failed: no valid throat pressure candidates.")
-
-        critical = max(candidates, key=lambda d: float(d["mass_flux_kg_m2_s"]))
+        critical = self._critical_throat_state(
+            upstream_pressure_bar=p1_bar,
+            upstream_temperature_C=upstream_temperature_C,
+        )
         pcrit_bar = float(critical["static_pressure_bar"])
         gcrit = float(critical["mass_flux_kg_m2_s"])
 
@@ -295,6 +432,11 @@ class CO2HEMChokeValve:
             "phase_label": str(down["phase_label"]),
             "critical_pressure_bar": float(pcrit_bar),
             "critical_mass_flux_kg_m2_s": float(gcrit),
+            "critical_search_method": str(critical.get("critical_search_method", "unknown")),
+            "critical_optimizer_success": str(critical.get("critical_optimizer_success", "unknown")),
+            "critical_pressure_samples": float(self.config.n_pressure_samples),
+            "critical_grid_pressure_bar": float(critical.get("critical_grid_pressure_bar", pcrit_bar)),
+            "critical_grid_mass_flux_kg_m2_s": float(critical.get("critical_grid_mass_flux_kg_m2_s", gcrit)),
             "selected_throat_pressure_bar": float(selected["static_pressure_bar"]),
             "selected_throat_temperature_C": float(selected["temperature_C"]),
             "selected_throat_quality_mass": float(selected["quality_mass"]),
