@@ -16,6 +16,7 @@ dependencies = [
     "numpy",
     "pandas",
     "CoolProp",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
