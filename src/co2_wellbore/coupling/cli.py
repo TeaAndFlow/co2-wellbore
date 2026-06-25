@@ -153,7 +153,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--std-temperature-C", type=float, default=15.0)
     p.add_argument("--surface-temperature-C", type=float, default=32.0)
     p.add_argument("--geothermal-gradient-C-per-m", type=float, default=0.03)
-    p.add_argument("--relaxation-length-m", type=float, default=700.0)
 
     p.add_argument("--heat-transfer", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--overall-U-W-m2K", type=float, default=4.0)
@@ -170,8 +169,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-thermal-time-days", type=float, default=0.01)
     p.add_argument("--max-formation-radius-m", type=float, default=30.0)
     p.add_argument("--max-abs-dT-per-segment-C", type=float, default=10.0)
-    p.add_argument("--max-abs-jt-K-per-Pa", type=float, default=2.0e-5)
-    p.add_argument("--include-joule-thomson-in-well", action=argparse.BooleanOptionalAction, default=True)
 
     p.add_argument("--two-phase", action=argparse.BooleanOptionalAction, default=True,
                    help="Enable CoolProp-saturation-triggered drift-flux closure; usually inactive for dense/supercritical storage states")

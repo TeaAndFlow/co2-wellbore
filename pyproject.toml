@@ -25,6 +25,7 @@ dev = [
     "pytest",
     "ruff",
     "black",
+    "tabulate",
 ]
 
 [tool.setuptools.packages.find]

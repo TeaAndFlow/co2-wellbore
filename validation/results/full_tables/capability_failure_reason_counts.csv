@@ -1,0 +1,4 @@
+component,status,failure_reason,count
+wellbore,warning,VERY_LOW_WELLBORE_PRESSURE,4942
+wellbore,fail,COOLPROP_INVALID_STATE,132
+wellbore,warning,HIGH_WELLBORE_VELOCITY,82
