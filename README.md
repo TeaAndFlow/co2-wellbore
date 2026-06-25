@@ -1,352 +1,313 @@
-# CO₂ Wellbore–Reservoir Coupling
+# CO2 Wellbore Coupled Model with OPM Flow
 
-**Version `v0.2.8` — wellbore/choke validation and verification release**
+**Version `v0.2.9` — capability envelope and full component stress-test release**
 
-This repository implements a Python-based reduced-order CO₂ wellbore and HEM choke model coupled to OPM Flow through a restart-based workflow.
+This repository contains a reduced-order external CO2 wellbore/choke workflow designed to be coupled with OPM Flow through restart-based control updates.
 
-The project is intended for research on CO₂ injection control, wellbore–reservoir coupling, choke-limited injection, thermal feedback through `WTEMP`, and reproducible coupling diagnostics.
+The `v0.2.9` release does **not** add salt precipitation or hydrate prediction yet. Instead, it documents the current numerical and physical capability envelope of the CO2 property backend, HEM choke model, and reduced wellbore model before adding new physics.
 
-> **Scope note:** `v0.2.8` validates and verifies the **external reduced-order CO₂ wellbore and HEM choke components**.  
-> The OPM Flow reservoir simulator is treated as an external simulator and is **not revalidated** in this repository.
+The main purpose of this release is:
 
----
-
-## What is new in `v0.2.8`
-
-Version `v0.2.8` adds a visible validation and verification layer for the wellbore/choke model:
-
-- CO₂ property checks against frozen NIST WebBook reference points;
-- CO₂ density and enthalpy trend verification;
-- tiny-flow hydrostatic wellbore pressure limiting case;
-- reduced thermal-model heat-transfer limiting behavior;
-- HEM choke capacity response to opening;
-- HEM choked and subcritical flow behavior;
-- HEM ideal-gas limiting behavior;
-- HEM critical-pressure and capacity numerical robustness.
-
-This release is designed to make the model easier to assess scientifically, not just operationally.
+> Stress the current model, identify robust regions, identify warning regions, and document what the model can and cannot safely do before adding salt precipitation and hydrate prediction.
 
 ---
 
-## Repository structure
+## What is new in `v0.2.9`
+
+Version `v0.2.9` adds a full component-level capability sweep and diagnostic plotting layer.
+
+The sweep covers:
+
+* CO2 P/T property calls;
+* HEM choke capacity over upstream pressure, upstream temperature, downstream pressure and opening;
+* reduced wellbore calculations over THP, injection rate, TVD, tubing diameter, thermal model and segment count;
+* failure/warning classification;
+* capability figures;
+* full-sweep diagnostic tables;
+* documented operating-envelope limitations.
+
+Main findings:
+
+* HEM choke behavior is stable and physically monotonic over the tested grid.
+* HEM capacity increases with valve opening and upstream pressure.
+* HEM capacity decreases with upstream temperature due to lower CO2 density.
+* CO2 P/T property calls remain stable over the tested grid.
+* The reduced wellbore model identifies a significant warning envelope dominated by `VERY_LOW_WELLBORE_PRESSURE`.
+* High-velocity warnings are localized to aggressive high-rate / small-diameter regimes.
+* The sweep provides a documented capability boundary before future salt/hydrate modules.
+
+This release does **not** claim:
+
+* salt precipitation prediction;
+* hydrate prediction;
+* OLGA/PROSPER equivalence;
+* field-calibrated predictive accuracy;
+* full transient multiphase wellbore validation;
+* full validation of OPM Flow itself.
+
+---
+
+## Repository status
+
+The current release should be interpreted as:
+
+| Version  | Purpose                                                           |
+| -------- | ----------------------------------------------------------------- |
+| `v0.2.8` | Validation and verification of external wellbore/choke components |
+| `v0.2.9` | Capability envelope and full component stress-test                |
+| future   | Post-choke P-H maps, salt precipitation and hydrate prediction    |
+
+---
+
+## Capability sweep results
+
+The full `v0.2.9` sweep generated component-level results in:
 
 ```text
-co2-wellbore/
-├── src/co2_wellbore/
-│   ├── calculator.py              # 1D CO₂ wellbore pressure/thermal model
-│   ├── hem_choke.py               # Real-fluid HEM choke model
-│   ├── properties.py              # CoolProp CO₂ property wrapper
-│   └── coupling/                  # OPM Flow restart-based coupling workflow
-├── data/                          # Example OPM deck and include files
-├── examples/                      # Example coupling runners
-├── tests/                         # Unit and validation tests
-├── scripts/validation/            # Reproducible validation figure generators
-├── validation/
-│   ├── reference/                 # Frozen external reference data
-│   ├── figures/                   # Generated validation figures
-│   └── results/                   # Generated validation CSV tables
-├── VALIDATION.md                  # Validation scope and methodology
-└── README.md
+validation/results/capability_envelope.csv
+validation/results/capability_summary.md
+validation/results/full_tables/
+validation/figures_full/
+validation/releases/v0.2.9/
+```
+
+The capability sweep classifies each case as:
+
+| Status    | Meaning                                                              |
+| --------- | -------------------------------------------------------------------- |
+| `ok`      | Component returned finite outputs without suspicious diagnostics     |
+| `warning` | Component returned outputs, but a diagnostic threshold was triggered |
+| `fail`    | Component raised an exception or entered an unsupported state        |
+
+The main warning observed in the full sweep is:
+
+```text
+VERY_LOW_WELLBORE_PRESSURE
+```
+
+This warning is interpreted as an operating-envelope diagnostic. It identifies combinations of boundary conditions and geometry where the reduced wellbore model approaches very low internal pressure and should not be treated as a fully reliable operating point without additional checks.
+
+---
+
+## Capability figures
+
+### Full sweep status
+
+The full sweep identifies mostly stable behavior for the HEM choke and property backend, while the wellbore model exposes a clear warning envelope.
+
+![Capability sweep status by component](validation/figures_full/capability_status_by_component.png)
+
+The dominant warning reason is `VERY_LOW_WELLBORE_PRESSURE`.
+
+![Capability failure reasons](validation/figures_full/capability_failure_reasons.png)
+
+---
+
+## HEM choke capability
+
+The HEM choke model shows physically reasonable behavior over the tested pressure, temperature, downstream pressure and opening ranges.
+
+Capacity increases monotonically with valve opening:
+
+![HEM capacity vs opening](validation/figures_full/capability_hem_capacity_vs_opening.png)
+
+The HEM capacity map shows higher capacity at higher upstream pressure and lower upstream temperature:
+
+![HEM capacity map](validation/figures_full/capability_hem_capacity_map_p1_t1.png)
+
+This behavior is consistent with real-fluid CO2 density effects: colder and denser CO2 produces higher mass-flow capacity.
+
+---
+
+## CO2 property backend capability
+
+The CO2 P/T property backend remains stable over the tested P/T grid:
+
+![CO2 property backend P/T capability map](validation/figures_full/capability_property_pt_ok_map.png)
+
+This is a useful property sanity check, but it is not a complete post-choke P-H validation. Future releases should add dedicated post-choke P-H maps for temperature, density, quality and hydrate-risk proxy diagnostics.
+
+---
+
+## Wellbore capability
+
+The reduced wellbore model was stressed over injection rate, THP, TVD, diameter, thermal model and segment count.
+
+A representative BHP response shows the expected increase with injection rate, followed by a near-plateau at high rates:
+
+![Wellbore BHP vs injection rate](validation/figures_full/capability_wellbore_bhp_vs_rate.png)
+
+The velocity response increases approximately linearly with injection rate:
+
+![Wellbore velocity vs injection rate](validation/figures_full/capability_wellbore_velocity_vs_rate.png)
+
+The wellbore warning envelope is dominated by very low internal pressure in aggressive or unrealistic operating regimes. This is the main practical boundary identified by the `v0.2.9` sweep.
+
+---
+
+## How to run the capability sweep
+
+For a fast smoke check:
+
+```bash
+python scripts/stress/run_capability_sweep.py --mode smoke
+python scripts/stress/plot_capability_results.py
+```
+
+For the recommended quick capability check:
+
+```bash
+python scripts/stress/run_capability_sweep.py --mode quick 2>&1 | tee capability_quick.log
+python scripts/stress/plot_capability_results.py \
+  --csv validation/results/capability_envelope.csv \
+  --figures-dir validation/figures_quick \
+  --tables-dir validation/results/quick_tables
+```
+
+For the full component-level stress sweep:
+
+```bash
+time python scripts/stress/run_capability_sweep.py --mode full 2>&1 | tee capability_full.log
+python scripts/stress/plot_capability_results.py \
+  --csv validation/results/capability_envelope.csv \
+  --figures-dir validation/figures_full \
+  --tables-dir validation/results/full_tables
+```
+
+The full sweep can take several hours depending on the machine and the selected grid.
+
+---
+
+## Generated outputs
+
+Typical full-sweep outputs include:
+
+```text
+validation/results/capability_envelope.csv
+validation/results/capability_summary.md
+validation/results/full_tables/
+validation/figures_full/capability_status_by_component.png
+validation/figures_full/capability_failure_reasons.png
+validation/figures_full/capability_hem_capacity_vs_opening.png
+validation/figures_full/capability_hem_capacity_map_p1_t1.png
+validation/figures_full/capability_property_pt_ok_map.png
+validation/figures_full/capability_wellbore_bhp_vs_rate.png
+validation/figures_full/capability_wellbore_velocity_vs_rate.png
 ```
 
 ---
 
 ## Installation
 
-From the repository root:
+Install the package in editable mode:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-The package depends on `numpy`, `pandas`, `CoolProp`, `matplotlib`, `scipy`, and `pytest` for tests.
-
----
-
-## Quick checks
-
-Run the full test suite:
+Run a quick syntax check:
 
 ```bash
-pytest -q
+python -m py_compile \
+  scripts/stress/run_capability_sweep.py \
+  scripts/stress/plot_capability_results.py \
+  src/co2_wellbore/coupling/cli.py
 ```
 
-Run only the validation tests:
+Run the smoke capability test:
 
 ```bash
-pytest -q tests/validation
+pytest -q tests/test_capability_sweep.py
 ```
 
-Run the validation scripts:
+---
+
+## OPM Flow coupling
+
+The package is designed to support restart-based coupling with OPM Flow. OPM Flow itself is treated as an external simulator. The validation and capability claims in this release apply to the external reduced-order wellbore/choke components and the surrounding coupling workflow, not to a re-validation of OPM Flow.
+
+A typical coupled example uses:
 
 ```bash
-./scripts/validation/run_validation_suite.sh
+python -m co2_wellbore.coupling.opm_restart \
+  --run-flow \
+  --deck Base.DATA \
+  --case-id CASE_ID \
+  --pressure-control-mode opening_choke \
+  --choke-model hem \
+  --thermal-model layered
 ```
 
-Or run the figure generators individually:
-
-```bash
-python scripts/validation/generate_validation_figures.py
-python scripts/validation/generate_hem_ideal_gas_limit.py
-python scripts/validation/generate_property_reference_comparison.py
-```
-
-Generated figures are written to:
-
-```text
-validation/figures/
-```
-
-Generated numerical tables are written to:
-
-```text
-validation/results/
-```
+See the `examples/` directory for runnable scripts.
 
 ---
 
-# Validation and verification evidence in `v0.2.8`
+## Scientific scope
 
-The following figures are intentionally shown on the main project page so that the validation evidence is visible immediately on GitHub.
+This project currently provides a reduced-order engineering model for CO2 wellbore/choke coupling studies.
 
-## 1. CO₂ property verification
+The current model includes:
 
-### CO₂ density trend
+* CO2 property evaluation through CoolProp;
+* reduced 1D wellbore pressure and thermal calculations;
+* optional drift-flux treatment for saturated CO2 states;
+* real-fluid HEM choke capacity calculation;
+* restart-based coupling workflow with OPM Flow;
+* validation and capability sweep utilities.
 
-![CO₂ density verification](validation/figures/co2_density_vs_pressure.png)
+The current model does not include:
 
-The density increases with pressure at fixed temperature. The steep increase at lower temperature reflects the transition toward dense/supercritical-like CO₂ behavior.
-
-### CO₂ enthalpy trend
-
-![CO₂ enthalpy verification](validation/figures/co2_enthalpy_vs_pressure.png)
-
-The specific enthalpy decreases smoothly with pressure at fixed temperature. This verifies stable property evaluation over the tested pressure range.
-
-### Frozen NIST reference comparison
-
-![CO₂ NIST property verification](validation/figures/co2_reference_property_max_errors.png)
-
-Frozen NIST WebBook reference points are used for density, enthalpy, viscosity, and heat capacity.
-
-For the selected reference states, the maximum relative errors are below `0.003%`.
-
-The reference CSV is stored in:
-
-```text
-validation/reference/co2_nist_reference_points.csv
-```
-
-The comparison results are stored in:
-
-```text
-validation/results/co2_reference_property_comparison.csv
-validation/results/co2_reference_property_error_summary.csv
-```
-
-Additional parity plots are generated for each property:
-
-```text
-validation/figures/co2_reference_density_kg_m3_parity.png
-validation/figures/co2_reference_enthalpy_J_kg_parity.png
-validation/figures/co2_reference_viscosity_Pa_s_parity.png
-validation/figures/co2_reference_cp_J_kgK_parity.png
-```
+* salt precipitation;
+* hydrate prediction;
+* compositional brine chemistry;
+* full transient multiphase wellbore PDEs;
+* field-calibrated model parameters;
+* commercial simulator equivalence claims.
 
 ---
 
-## 2. Wellbore pressure verification
+## Recommended interpretation of `v0.2.9`
 
-### Tiny-flow hydrostatic limit
+The `v0.2.9` release should be used as a documented baseline before adding salt precipitation and hydrate prediction.
 
-![Wellbore hydrostatic verification](validation/figures/wellbore_pressure_hydrostatic_limit.png)
+The correct interpretation is:
 
-At tiny flow rate, friction and acceleration effects are small. The computed wellbore pressure profile closely follows the hydrostatic pressure estimate.
+> The model has a documented component-level capability envelope. HEM choke and CO2 P/T property behavior are robust over the tested grid. The wellbore model identifies clear warning regions, especially very-low-pressure regimes, which should be treated as outside or near the edge of the recommended operating envelope.
 
-This verifies that the pressure integration behaves correctly in a simple analytical limiting case.
+The incorrect interpretation is:
 
----
-
-## 3. Reduced thermal-model verification
-
-### Heat-transfer response
-
-![Wellbore thermal verification](validation/figures/wellbore_thermal_response.png)
-
-As the heat-transfer coefficient increases, the bottomhole temperature moves toward the geothermal bottomhole temperature.
-
-This verifies the limiting behavior of the reduced thermal model.
-
-> This figure does **not** claim full transient thermal-physics validation.  
-> It verifies that the reduced engineering thermal model responds in the physically expected direction.
+> The model is fully validated for all CO2 injection scenarios, salt precipitation and hydrate risk.
 
 ---
 
-## 4. HEM choke verification
+## Next development steps
 
-### Capacity response to choke opening
+Recommended next steps after `v0.2.9`:
 
-![HEM capacity opening verification](validation/figures/hem_capacity_vs_opening.png)
+1. Add post-choke P-H stress maps:
 
-The HEM choke capacity increases monotonically with choke opening.
+   * post-choke temperature;
+   * post-choke density;
+   * post-choke quality;
+   * post-choke cooling maps.
 
-This verifies the expected physical response of the effective choke area.
+2. Add hydrate-risk proxy diagnostics, clearly marked as non-predictive.
 
-### Choked and subcritical regimes
+3. Add salt precipitation pre-screening only after the post-choke thermodynamic envelope is understood.
 
-![HEM choked/subcritical verification](validation/figures/hem_capacity_vs_downstream_pressure.png)
+4. Add operating-envelope tables:
 
-The model reproduces two expected regimes:
+   * maximum safe rate versus THP/TVD/diameter;
+   * low-pressure warning boundaries;
+   * high-velocity warning boundaries.
 
-- below the critical pressure, the flow is choked and capacity is nearly independent of downstream pressure;
-- above the critical pressure, the flow becomes subcritical and capacity decreases with increasing downstream pressure.
-
-### Ideal-gas limiting behavior
-
-![HEM ideal-gas limit verification](validation/figures/hem_ideal_gas_limit.png)
-
-In gas-like CO₂ states, the real-fluid HEM implementation approaches the analytical ideal-gas choked-flow limit.
-
-![HEM ideal-gas error](validation/figures/hem_ideal_gas_limit_error.png)
-
-The relative difference from the analytical ideal-gas limit is about `0.3–0.4%` for the selected gas-like CO₂ cases.
+5. Add optional OPM integration regression tests.
 
 ---
 
-## 5. HEM critical-pressure numerical robustness
+## Citation / acknowledgement
 
-### Critical-pressure robustness
+This repository is part of ongoing research on CO2 injection wellbore/reservoir coupling and reduced-order surrogate workflows using OPM Flow.
 
-![HEM critical pressure robustness](validation/figures/hem_critical_pressure_convergence.png)
+For scientific use, please cite the repository version/tag used in your experiments.
 
-### Capacity robustness
-
-![HEM capacity robustness](validation/figures/hem_capacity_convergence.png)
-
-The HEM critical pressure is no longer selected only as the maximum point from a fixed pressure grid.
-
-In `v0.2.8`, the algorithm uses:
-
-1. a log-spaced pressure grid to locate a robust bracket;
-2. bounded scalar optimization in log-pressure space to refine the critical point;
-3. the original grid result as fallback if the optimizer fails or enters an invalid thermodynamic state.
-
-The resulting critical pressure and capacity are insensitive to the optimizer-bracketing grid resolution for the tested case.
-
----
-
-# Main validation summary
-
-| Component | Verification evidence | Result |
-|---|---|---|
-| CO₂ properties | Frozen NIST WebBook reference points | Maximum selected-property error below `0.003%` |
-| CO₂ property trends | Density and enthalpy over pressure | Smooth physically consistent trends |
-| Wellbore pressure | Tiny-flow hydrostatic limit | Computed pressure closely follows hydrostatic estimate |
-| Reduced thermal model | Heat-transfer response | Bottomhole temperature approaches geothermal limit as `U` increases |
-| HEM opening response | Capacity versus choke opening | Capacity increases monotonically with opening |
-| HEM critical flow | Capacity versus downstream pressure | Choked plateau and subcritical decline reproduced |
-| HEM analytical limit | Ideal-gas choked-flow comparison | Agreement within about `0.4%` in gas-like CO₂ cases |
-| HEM numerics | Optimizer-bracketing grid sensitivity | Capacity and critical pressure insensitive to bracketing resolution |
-
----
-
-## Scientific claim
-
-The correct scientific claim for `v0.2.8` is:
-
-> The reduced-order CO₂ wellbore and HEM choke components are verified against thermodynamic reference points, analytical limiting cases, monotonicity checks, choked-flow behavior, ideal-gas limiting behavior, and numerical robustness tests.
-
-This repository does **not** claim:
-
-- validation of OPM Flow itself;
-- equivalence to OLGA or PROSPER;
-- field-calibrated predictive wellbore performance;
-- full transient multiphase wellbore PDE validation.
-
----
-
-## Coupling model overview
-
-The coupling workflow links OPM Flow and the external wellbore/choke model through restart-based control.
-
-At each coupling step, the workflow uses OPM trial information and external wellbore/choke calculations to update injection control quantities such as:
-
-- injection rate;
-- wellbore bottomhole pressure;
-- tubing-head/choke behavior;
-- bottomhole temperature feedback through `WTEMP`.
-
-The thermal deck editing workflow keeps `TEMPVD` as the fixed geothermal reservoir initialization and updates `WTEMP` as the wellbore-calculated injection temperature.
-
-This avoids resetting the reservoir thermal field while still allowing the external wellbore model to provide thermal feedback at the well.
-
----
-
-## Canonical validation commands
-
-From the repository root:
-
-```bash
-pip install -e ".[dev]"
-python -m compileall src
-pytest -q
-pytest -q tests/validation
-./scripts/validation/run_validation_suite.sh
-```
-
-Expected state for `v0.2.8`:
-
-```text
-all tests passing
-validation figures generated in validation/figures/
-validation CSV tables generated in validation/results/
-```
-
----
-
-## Recommended use in papers or thesis text
-
-Recommended wording:
-
-> A restart-based research coupling workflow is developed between OPM Flow and an external reduced-order CO₂ wellbore/choke model. The external model uses CoolProp real-fluid properties, a 1D wellbore pressure/thermal calculation, and a real-fluid HEM choke capacity model. The wellbore and choke components are verified against frozen thermodynamic reference points, analytical limiting cases, monotonicity checks, choked-flow behavior, ideal-gas limiting behavior, and numerical robustness tests. The reservoir simulator itself is treated as an external component and is not revalidated in this work.
-
-Avoid claiming:
-
-```text
-The full coupled simulator is fully validated against commercial wellbore simulators.
-```
-
-A stronger and more defensible claim is:
-
-```text
-The reduced-order wellbore/choke components are verified and documented through reproducible validation tests and figures.
-```
-
----
-
-## Development notes
-
-Useful commands:
-
-```bash
-python -m compileall src
-pytest -q
-pytest -q tests/validation
-python scripts/validation/run_hem_grid_convergence.py
-```
-
-Generate validation figures:
-
-```bash
-python scripts/validation/generate_validation_figures.py
-python scripts/validation/generate_hem_ideal_gas_limit.py
-python scripts/validation/generate_property_reference_comparison.py
-```
-
----
-
-## License and data
-
-The repository uses open Python tooling and frozen local validation reference points.
-
-The NIST WebBook-derived reference values are stored as fixed CSV values to keep the validation suite reproducible offline. The validation scripts do not download live web data during CI or local test runs.
